@@ -102,8 +102,8 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                     xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                     result = {'frame_sequence': frame_sequence, 'frame_timestamp': timestamp,
                               'yolo_timestamp': time.clock_gettime(time.CLOCK_MONOTONIC),
-                              'detections': {'x1': xyxy[0].item(), 'y1': xyxy[1].item(),
-                                             'x2': xyxy[2].item(), 'y2': xyxy[3].item()},
+                              'detection': {'x1': xyxy[0].item(), 'y1': xyxy[1].item(),
+                                            'x2': xyxy[2].item(), 'y2': xyxy[3].item()},
                               'conf': conf.item(), 'cls_conf': conf.item(), 'cls_pred': int(cls),
                               'cls_pred_name': names[int(cls)], 'yolo_version': 'v5'}
                     line = json.dumps(result) + '\n'
