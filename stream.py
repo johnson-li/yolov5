@@ -100,14 +100,16 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                 plot_one_box(xyxy, img0, label=label, color=colors[int(cls)], line_thickness=3)
                 if opt.log_detections:
                     xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                    line = json.dumps({'frame_sequence': frame_sequence, 'frame_timestamp': timestamp,
-                                       'yolo_timestamp': time.clock_gettime(time.CLOCK_MONOTONIC),
-                                       'detections': {'x1': xyxy[0].item(), 'y1': xyxy[1].item(),
-                                                      'x2': xyxy[2].item(), 'y2': xyxy[3].item()},
-                                       'conf': conf.item(), 'cls_conf': conf.item(), 'cls_pred': int(cls),
-                                       'cls_pred_name': names[int(cls)], 'yolo_version': 'v5', }) + '\n'
+                    result = {'frame_sequence': frame_sequence, 'frame_timestamp': timestamp,
+                              'yolo_timestamp': time.clock_gettime(time.CLOCK_MONOTONIC),
+                              'detections': {'x1': xyxy[0].item(), 'y1': xyxy[1].item(),
+                                             'x2': xyxy[2].item(), 'y2': xyxy[3].item()},
+                              'conf': conf.item(), 'cls_conf': conf.item(), 'cls_pred': int(cls),
+                              'cls_pred_name': names[int(cls)], 'yolo_version': 'v5'}
+                    line = json.dumps(result) + '\n'
                     with open(opt.log_detections, 'a+') as f:
                         f.write(line)
+                    on_result(result)
             cv2.imwrite(os.path.join(out, "%d.jpg" % frame_sequence), img0)
             if opt.show_images:
                 draw_image(img0)
