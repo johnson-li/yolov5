@@ -234,7 +234,7 @@ def parse_args():
     parser.add_argument('-a', '--augment', action='store_true', help='augmented inference')
     parser.add_argument('-f', '--classes', nargs='+', type=int, help='filter by class')
     parser.add_argument('-l', '--show-images', action='store_true', help='Show detected objects')
-    parser.add_argument('--log-detections', default='detections.json', help='The json file to record detected objects')
+    parser.add_argument('--log-detections', default='detection.json', help='The json file to record detected objects')
     opt = parser.parse_args()
     opt.img_size = check_img_size(opt.img_size)
     return opt
