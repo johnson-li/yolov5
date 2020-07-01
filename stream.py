@@ -100,6 +100,10 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                 plot_one_box(xyxy, img0, label=label, color=colors[int(cls)], line_thickness=3)
                 if opt.log_detections:
                     xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                    x1 = xywh[0] - xywh[2] / 2
+                    y1 = xywh[1] - xywh[3] / 2
+                    x2 = xywh[0] + xywh[2] / 2
+                    y2 = xywh[1] + xywh[3] / 2
                     result = {'frame_sequence': frame_sequence, 'frame_timestamp': timestamp,
                               'yolo_timestamp': time.clock_gettime(time.CLOCK_MONOTONIC),
                               'detection': {'x1': xyxy[0].item(), 'y1': xyxy[1].item(),
