@@ -103,9 +103,10 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                     result = {'frame_sequence': frame_sequence, 'frame_timestamp': timestamp,
                               'yolo_timestamp': time.clock_gettime(time.CLOCK_MONOTONIC),
                               'detection': {'x1': xyxy[0].item(), 'y1': xyxy[1].item(),
-                                            'x2': xyxy[2].item(), 'y2': xyxy[3].item()},
-                              'conf': conf.item(), 'cls_conf': conf.item(), 'cls_pred': int(cls),
-                              'cls_pred_name': names[int(cls)], 'yolo_version': 'v5'}
+                                            'x2': xyxy[2].item(), 'y2': xyxy[3].item(),
+                                            'conf': conf.item(), 'cls_conf': conf.item(), 'cls_pred': int(cls),
+                                            'cls_pred_name': names[int(cls)]},
+                              'yolo_version': 'v5'}
                     line = json.dumps(result) + '\n'
                     with open(opt.log_detections, 'a+') as f:
                         f.write(line)
