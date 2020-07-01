@@ -106,8 +106,7 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                     y2 = xywh[1] + xywh[3] / 2
                     result = {'frame_sequence': frame_sequence, 'frame_timestamp': timestamp,
                               'yolo_timestamp': time.clock_gettime(time.CLOCK_MONOTONIC),
-                              'detection': {'x1': xyxy[0].item(), 'y1': xyxy[1].item(),
-                                            'x2': xyxy[2].item(), 'y2': xyxy[3].item(),
+                              'detection': {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2,
                                             'conf': conf.item(), 'cls_conf': conf.item(), 'cls_pred': int(cls),
                                             'cls_pred_name': names[int(cls)]},
                               'yolo_version': 'v5'}
