@@ -188,7 +188,7 @@ class TcpServerProtocol(asyncio.Protocol):
         SERVER_PROTOCOLS.remove(self)
 
     def on_result(self, result):
-        self.transport.write(result.encode())
+        self.transport_.write(result.encode())
 
     def data_received(self, data):
         message = data.decode()
