@@ -203,7 +203,7 @@ class UnixServerProtocol(asyncio.BaseProtocol):
         self._transport = transport
 
     def data_received(self, data):
-        data = data.decode().strip()
+        data = data.decode().strip() + "\n"
         for protocol in self._server_protocols:
             protocol.on_result(data)
 
