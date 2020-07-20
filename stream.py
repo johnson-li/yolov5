@@ -171,7 +171,7 @@ def on_result(result):
     sock.send(result.encode())
 
 
-class UdpServerProtocol(asyncio.DatagramProtocol):
+class TcpServerProtocol(asyncio.Protocol):
     def __init__(self):
         self.port = 4400
         self.transport_ = None
@@ -184,15 +184,20 @@ class UdpServerProtocol(asyncio.DatagramProtocol):
         pass
 
     def on_result(self, result):
-        for client in self.clients_.keys():
-            print('Send result to: %s, result: %s' % (client, result))
-            self.transport_.sendto(result.encode(), client)
+        self.transport.write(result.encode())
+        # for client in self.clients_.keys():
+            # print('Send result to: %s, result: %s' % (client, result))
+            # self.transport_.sendto(result.encode(), client)
 
     def datagram_received(self, data, addr):
         message = data.decode()
         if addr not in self.clients_:
             print("Register new client: %s" % (addr,))
             self.clients_[addr] = 1
+
+    def data_received(self, data):
+        message = data.decode()
+        print("Register new client")
 
 
 class UnixServerProtocol(asyncio.BaseProtocol):
@@ -214,15 +219,17 @@ class UnixServerProtocol(asyncio.BaseProtocol):
 async def start_udp_server():
     print('Starting UDP server')
     loop = asyncio.get_running_loop()
-    transport1, _ = await loop.create_datagram_endpoint(lambda: SERVER_PROTOCOL,
-                                                        local_addr=('0.0.0.0', SERVER_PROTOCOL.port))
+    server = await loop.create_server(lambda: SERVER_PROTOCOL, '0.0.0.0', SERVER_PROTOCOL.port)
+    # transport1, _ = await loop.create_datagram_endpoint(lambda: SERVER_PROTOCOL,
+    #                                                     local_addr=('0.0.0.0', SERVER_PROTOCOL.port))
     unix_server = await loop.create_unix_server(UnixServerProtocol, path=UNIX_SOCKET_NAME)
     try:
         await asyncio.sleep(5)
         SERVER_BARRIER.wait()
         await asyncio.sleep(3600)  # Serve for 1 hour.
     finally:
-        transport1.close()
+        # transport1.close()
+        server.close()
         unix_server.close()
 
 
@@ -263,7 +270,7 @@ def main():
     process.join()
 
 
-SERVER_PROTOCOL = UdpServerProtocol()
+SERVER_PROTOCOL = TcpServerProtocol()
 
 if __name__ == '__main__':
     try:
