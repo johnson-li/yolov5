@@ -13,6 +13,7 @@ from utils.utils import *
 from multiprocessing import shared_memory, Process, Manager, Barrier
 
 LOGGER = logging.getLogger(__name__)
+PORT = 4400
 FRAMES_SIZE = 128
 INDEX_SIZE = 24
 HEADER_SIZE = 8
@@ -173,62 +174,55 @@ def on_result(result):
 
 class TcpServerProtocol(asyncio.Protocol):
     def __init__(self):
-        self.port = 4400
         self.transport_ = None
         self.clients_ = Manager().dict()
 
     def connection_made(self, transport):
+        print(f"New client connected: {transport}" )
         self.transport_ = transport
+        SERVER_PROTOCOLS.add(self)
 
-    def connection_lost(self, transport):
-        pass
+
+    def connection_lost(self, exc):
+        print(f"Client connected: {self.transport_}" )
+        SERVER_PROTOCOLS.remove(self)
 
     def on_result(self, result):
         self.transport.write(result.encode())
-        # for client in self.clients_.keys():
-            # print('Send result to: %s, result: %s' % (client, result))
-            # self.transport_.sendto(result.encode(), client)
-
-    def datagram_received(self, data, addr):
-        message = data.decode()
-        if addr not in self.clients_:
-            print("Register new client: %s" % (addr,))
-            self.clients_[addr] = 1
 
     def data_received(self, data):
         message = data.decode()
-        print("Register new client")
 
 
 class UnixServerProtocol(asyncio.BaseProtocol):
     def __init__(self):
         self._transport = None
-        self._server_protocol = SERVER_PROTOCOL
+        self._server_protocols = SERVER_PROTOCOLS
 
     def connection_made(self, transport):
         self._transport = transport
 
     def data_received(self, data):
         data = data.decode().strip()
-        self._server_protocol.on_result(data)
+        for protocol in self._server_protocols:
+            protocol.on_result(data)
 
     def eof_received(self):
         pass
 
 
-async def start_udp_server():
-    print('Starting UDP server')
+async def start_tcp_server():
+    print('Starting TCP server')
     loop = asyncio.get_running_loop()
-    server = await loop.create_server(lambda: SERVER_PROTOCOL, '0.0.0.0', SERVER_PROTOCOL.port)
-    # transport1, _ = await loop.create_datagram_endpoint(lambda: SERVER_PROTOCOL,
-    #                                                     local_addr=('0.0.0.0', SERVER_PROTOCOL.port))
+    server = await loop.create_server(lambda: TcpServerProtocol(), '0.0.0.0', PORT)
+    addr = server.sockets[0].getsockname()
+    print(f'Serving on {addr}')
     unix_server = await loop.create_unix_server(UnixServerProtocol, path=UNIX_SOCKET_NAME)
     try:
         await asyncio.sleep(5)
         SERVER_BARRIER.wait()
         await asyncio.sleep(3600)  # Serve for 1 hour.
     finally:
-        # transport1.close()
         server.close()
         unix_server.close()
 
@@ -266,14 +260,15 @@ def main():
     opt = parse_args()
     process = Process(target=object_detection, args=(opt,))
     process.start()
-    asyncio.run(start_udp_server())
+    asyncio.run(start_tcp_server())
     process.join()
 
 
-SERVER_PROTOCOL = TcpServerProtocol()
+SERVER_PROTOCOLS = set()
 
 if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt as e:
         LOGGER.info("Keyboard interruption detected, terminate programme.")
+
