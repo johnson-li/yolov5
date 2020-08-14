@@ -71,7 +71,7 @@ def draw_image(img):
 
 @log_time("Processing image")
 def process_image(device, model, model_classify, opt, index, data, width, height, timestamp, frame_sequence):
-    print("Process image #%d[%d] of size (%dx%d) captured at %d" % (index, frame_sequence, width, height, timestamp))
+    print(f"Process image #{index}[{frame_sequence}] of size ({width}x{height}) captured at {timestamp} [{time.monotonic() * 1000}]")
     half = device.type != 'cpu'  # half precision only supported on CUDA
     img0 = np.frombuffer(data, dtype=np.uint8).reshape((height, width, -1))  # BGRA
     img = letterbox(img0[:, :, :3], new_shape=opt.img_size)[0]
@@ -86,7 +86,7 @@ def process_image(device, model, model_classify, opt, index, data, width, height
     pred = model(img, augment=opt.augment)[0]
     pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
     end_ts = torch_utils.time_synchronized()
-    print("YOLOv5 takes %fms" % ((end_ts - start_ts) * 1000))
+    print(f"YOLOv5 takes {(end_ts - start_ts) * 1000}ms [{time.monotonic() * 1000}]")
     if opt.classify:
         pred = apply_classifier(pred, model_classify, img, img0)
     names = model.module.names if hasattr(model, 'module') else model.names
@@ -114,6 +114,7 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                     line = json.dumps(result) + '\n'
                     with open(opt.log_detections, 'a+') as f:
                         f.write(line)
+                    print(f"Send result back at [{time.monotonic() * 1000}]")
                     on_result(result)
             cv2.imwrite(os.path.join(out, "%d.jpg" % frame_sequence), img0)
             if opt.show_images:
@@ -153,8 +154,7 @@ def read_shared_mem(device, model, model_classify, opt):
             if get_size() > index:
                 _, _, _, _, next_timestamp, next_frame_sequence, next_finished = get_frame_info((i + 1) % FRAMES_SIZE)
                 if next_finished == 1:
-                    print('New frame is ready, skip frame #%d[%d], captured at %d' % (
-                        index, next_frame_sequence, next_timestamp))
+                    print(f'New frame is ready, skip frame #{index}[{frame_sequence}], captured at {timestamp} [{time.monotonic() * 1000}]')
                     index += 1
                     continue
             if finished == 1:  # check the finished tag
