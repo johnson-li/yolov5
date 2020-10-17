@@ -64,19 +64,15 @@ def read_shared_mem(opt):
                     index += 1
                     continue
             if finished == 1:  # check the finished tag
-                store(opt, index, frame_sequence, timestamp, bytes(shm.buf[CONTENT_OFFSET + offset: CONTENT_OFFSET + offset + length]))
+                bin_path = os.path.join(opt.output, f'{frame_sequence}.bin')
+                print(f"write {bin_path}")
+                json_path = os.path.join(opt.output, f'{frame_sequence}.json')
+                json.dump({'timestamp': timestamp, 'width': width, 'height': height}, open(json_path, 'w+'))
+                with open(bin_path, 'wb+') as f:
+                    f.write(bytes(shm.buf[CONTENT_OFFSET + offset: CONTENT_OFFSET + offset + length]))
+                    f.close()
                 index += 1
     shm.close()
-
-
-def store(opt, index, frame_sequence, timestamp, data):
-    bin_path = os.path.join(opt.output, f'{frame_sequence}.bin')
-    print(f"write {bin_path}")
-    json_path = os.path.join(opt.output, f'{frame_sequence}.json')
-    json.dump({'timestamp': timestamp}, open(json_path, 'w+'))
-    with open(bin_path, 'wb+') as f:
-      f.write(data)
-      f.close()
 
 
 def parse_args():
