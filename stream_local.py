@@ -4,6 +4,7 @@ import socket
 import json
 import asyncio
 import logging
+import numpy as np
 
 import torch.backends.cudnn as cudnn
 
@@ -45,18 +46,15 @@ def log_time(name):
 @log_time("Initiating model")
 def get_model(opt):
     device = torch_utils.select_device(opt.device)
-    if os.path.exists(opt.output):
-        shutil.rmtree(opt.output)  # delete output folder
-    os.makedirs(opt.output)  # make new output folder
-    half = device.type != 'cpu'  # half precision only supported on CUDA
+    half = device.type != 'cpu'
     google_utils.attempt_download(opt.weights)
-    model = torch.load(opt.weights, map_location=device)['model'].float()  # load to FP32
+    model = torch.load(opt.weights, map_location=device)['model'].float()
     model.to(device).eval()
     if half:
-        model.half()  # to FP16
+        model.half()
     model_classify = torch_utils.load_classifier(name='resnet101', n=2) if opt.classify else None
     if model_classify:
-        model_classify.load_state_dict(torch.load('weights/resnet101.pt', map_location=device)['model'])  # load weights
+        model_classify.load_state_dict(torch.load('weights/resnet101.pt', map_location=device)['model'])
         model_classify.to(device).eval()
     return device, model, model_classify
 
@@ -72,7 +70,8 @@ def draw_image(img):
 
 @log_time("Processing image")
 def process_image(device, model, model_classify, opt, index, data, width, height, timestamp, frame_sequence):
-    print(f"Process image #{index}[{frame_sequence}] of size ({width}x{height}) captured at {timestamp} [{time.monotonic() * 1000}]")
+    print(
+        f"Process image #{index}[{frame_sequence}] of size ({width}x{height}) captured at {timestamp} [{time.monotonic() * 1000}]")
     half = device.type != 'cpu'  # half precision only supported on CUDA
     img0 = np.frombuffer(data, dtype=np.uint8).reshape((height, width, -1))  # BGRA
     img = letterbox(img0[:, :, :3], new_shape=opt.img_size)[0]
@@ -113,90 +112,23 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                                             'cls_pred_name': names[int(cls)]},
                               'yolo_version': 'v5'}
                     line = json.dumps(result) + '\n'
-                    with open(opt.log_detections, 'a+') as f:
+                    with open(os.path.join(opt.path, f'{frame_sequence}.txt'), 'a+') as f:
                         f.write(line)
-                    print(f"Send result back at [{time.monotonic() * 1000}]")
-                    on_result(result)
-            cv2.imwrite(os.path.join(out, "%d.jpg" % frame_sequence), img0)
             if opt.show_images:
+                cv2.imwrite(os.path.join(out, "%d.jpg" % frame_sequence), img0)
                 draw_image(img0)
                 plt.draw()
                 plt.pause(.01)
 
 
 def read_images(device, model, model_classify, opt):
-    result = {}
-    for log_dir in os.listdir(opt.data_folder):
-        log_dir = os.path.join(opt.data_folder, log_dir)
-        if not os.path.isdir(log_dir):
-            continue
-        metadata_path = os.path.join(log_dir, "metadata.txt")
-        metadata = {}
-        with open(metadata_path) as f:
-            for line in f.readlines():
-                line = line.strip()
-                if line:
-                    sp = line.split('=')
-                    metadata[sp[0]] = sp[1]
-        result.setdefault(metadata['codec'], {}).setdefault(metadata['resolution'], {}).setdefault(metadata['bitrate'], {})['log_dir'] = log_dir
-    for codec in result.keys():
-        for resolution in result[codec]:
-            for bitrate in result[codec][resolution]:
-                log_dir = result[codec][resolution][bitrate]['log_dir']
-                dump_dir = os.path.join(log_dir, 'dump')
-                if not os.path.isdir(dump_dir):
-                    continue
-                image_files = []
-                for image_file in os.listdir(dump_dir):
-                    if image_file.endswith('.bin'):
-                        image_files.append(image_file)
-                image_files = sorted(image_files, key=lambda x: int(x.split('.')[0]))
-                for image_file in image_files:
-                    image_file = os.path.join(dump_dir, image_file)
-                    data = open(image_file, 'rb').read()
-                    print(len(data))
-
-
-def read_shared_mem(device, model, model_classify, opt):
-    print('Read shared memory')
-    while True:
-        try:
-            shm = shared_memory.SharedMemory(name='/webrtc_frames', create=False)
-            break
-        except Exception as e:
-            print("The shared memory is not ready, sleep 1s")
-            time.sleep(1)
-    assert shm.size == BUFFER_SIZE
-
-    def get_size():
-        return struct.unpack('I', bytes(shm.buf[:4]))[0]
-
-    def get_offset():
-        return struct.unpack('I', bytes(shm.buf[:4]))[0]
-
-    def get_frame_info(i):
-        return struct.unpack('IIHHIIi',
-                             bytes(shm.buf[HEADER_SIZE + i * INDEX_SIZE: HEADER_SIZE + (i + 1) * INDEX_SIZE]))
-
-    size = get_size()
-    print("Number of frames: %d" % size)
-    index = size - 1 if size > 0 else 0
-    while True:
-        if index < get_size():
-            i = index % FRAMES_SIZE
-            offset, length, width, height, timestamp, frame_sequence, finished = get_frame_info(i)
-            if get_size() > index:
-                _, _, _, _, next_timestamp, next_frame_sequence, next_finished = get_frame_info((i + 1) % FRAMES_SIZE)
-                if next_finished == 1:
-                    print(f'New frame is ready, skip frame #{index}[{frame_sequence}], captured at {timestamp} [{time.monotonic() * 1000}]')
-                    index += 1
-                    continue
-            if finished == 1:  # check the finished tag
-                process_image(device, model, model_classify, opt, index,
-                              bytes(shm.buf[CONTENT_OFFSET + offset: CONTENT_OFFSET + offset + length]),
-                              width, height, timestamp, frame_sequence)
-                index += 1
-    shm.close()
+    files = os.listdir(opt.path)
+    sequences = sorted(list(set([f.split('.')[0] for f in files])))
+    for seq in sequences:
+        meta = json.load(open(os.path.join(opt.path, f'{seq}.json')))
+        width, height, timestamp = meta['width'], meta['height'], meta['timestamp']
+        image = np.fromfile(os.path.join(opt.path, f'{seq}.bin'))
+        process_image(device, model, model_classify, opt, -1, image, width, height, timestamp, seq)
 
 
 def on_result(result):
@@ -208,16 +140,10 @@ def on_result(result):
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--path', type=str, help='the path of dump dir')
     parser.add_argument('-w', '--weights', type=str, default='weights/yolov5s.pt', help='model.pt path')
-    parser.add_argument('-o', '--output', type=str, default='output', help='output folder')  # output folder
-    parser.add_argument('-b', '--data-folder', type=str, default='/home/lix16/Workspace/webrtc/src/results', help='output folder')  # output folder
-    parser.add_argument('-s', '--img-size', type=int, default=640, help='inference size (pixels)')
-    parser.add_argument('-c', '--conf-thres', type=float, default=0.4, help='object confidence threshold')
-    parser.add_argument('-i', '--iou-thres', type=float, default=0.5, help='IOU threshold for NMS')
     parser.add_argument('-v', '--view-img', action='store_true', help='display results')
     parser.add_argument('-d', '--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('-2', '--classify', default=False, help='whether to enable the second-level classifier')
-    parser.add_argument('-g', '--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('-a', '--augment', action='store_true', help='augmented inference')
     parser.add_argument('-f', '--classes', nargs='+', type=int, help='filter by class')
     parser.add_argument('-l', '--show-images', action='store_true', help='Show detected objects')
@@ -229,9 +155,7 @@ def parse_args():
 
 def object_detection(opt):
     try:
-        # device, model, model_classify = get_model(opt)
-        # SERVER_BARRIER.wait()
-        device, model, model_classify = 0, 0, 0
+        device, model, model_classify = get_model(opt)
         read_images(device, model, model_classify, opt)
     except KeyboardInterrupt as e:
         LOGGER.info("Keyboard interruption detected, terminate programme.")
@@ -249,4 +173,3 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt as e:
         LOGGER.info("Keyboard interruption detected, terminate programme.")
-
