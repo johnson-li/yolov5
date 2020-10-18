@@ -11,19 +11,9 @@ import torch.backends.cudnn as cudnn
 from utils import google_utils
 from utils.datasets import *
 from utils.utils import *
-from multiprocessing import shared_memory, Process, Manager, Barrier
 from pprint import pprint
 
 LOGGER = logging.getLogger(__name__)
-PORT = 4400
-FRAMES_SIZE = 128
-INDEX_SIZE = 24
-HEADER_SIZE = 8
-BUFFER_SIZE = 100 * 1024 * 1024
-CONTENT_OFFSET = 4096
-CONTENT_SIZE = BUFFER_SIZE - CONTENT_OFFSET
-UNIX_SOCKET_NAME = '/tmp/yolo_stream'
-SERVER_BARRIER = Barrier(2)
 FIGURE = plt.figure(figsize=(9, 6), dpi=200)
 AX = FIGURE.gca()
 IM = None
@@ -92,7 +82,6 @@ def process_image(device, model, model_classify, opt, index, data, width, height
     names = model.module.names if hasattr(model, 'module') else model.names
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
     for i, det in enumerate(pred):  # detections per image
-        out = opt.output
         gn = torch.tensor(img0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
         if det is not None and len(det):
             det[:, :4] = scale_coords(img.shape[2:], det[:, :4], img0.shape).round()
@@ -115,7 +104,7 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                     with open(os.path.join(opt.path, f'{frame_sequence}.txt'), 'a+') as f:
                         f.write(line)
             if opt.show_images:
-                cv2.imwrite(os.path.join(out, "%d.jpg" % frame_sequence), img0)
+                cv2.imwrite(os.path.join(opt.path, f"{frame_sequence}.jpg"), img0)
                 draw_image(img0)
                 plt.draw()
                 plt.pause(.01)
@@ -140,10 +129,15 @@ def on_result(result):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--path', type=str, help='the path of dump dir')
+    parser.add_argument('-p', '--path', type=str, help='the path of dump dir')
     parser.add_argument('-w', '--weights', type=str, default='weights/yolov5s.pt', help='model.pt path')
     parser.add_argument('-v', '--view-img', action='store_true', help='display results')
     parser.add_argument('-d', '--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('-2', '--classify', default=False, help='whether to enable the second-level classifier')
+    parser.add_argument('-s', '--img-size', type=int, default=640, help='inference size (pixels)')
+    parser.add_argument('-c', '--conf-thres', type=float, default=0.4, help='object confidence threshold')
+    parser.add_argument('-i', '--iou-thres', type=float, default=0.5, help='IOU threshold for NMS')
+    parser.add_argument('-g', '--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('-a', '--augment', action='store_true', help='augmented inference')
     parser.add_argument('-f', '--classes', nargs='+', type=int, help='filter by class')
     parser.add_argument('-l', '--show-images', action='store_true', help='Show detected objects')
