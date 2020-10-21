@@ -126,9 +126,9 @@ def read_images(device, model, model_classify, opt):
     for seq in sequences:
         meta = json.load(open(os.path.join(opt.path, f'{seq}.json')))
         width, height, timestamp = meta['width'], meta['height'], meta['timestamp']
-        if width != opt.img_size:
-            print(f'Image of wrong size: {width}x{height} vs {opt.img_size}')
-            continue
+        # if width != opt.img_size:
+        #     print(f'Image of wrong size: {width}x{height} vs {opt.img_size}')
+        #     continue
         image = np.fromfile(os.path.join(opt.path, f'{seq}.bin'))
         process_image(device, model, model_classify, opt, -1, image, width, height, timestamp, seq)
 
@@ -149,7 +149,16 @@ def parse_args():
     parser.add_argument('-l', '--show-images', action='store_true', help='Show detected objects')
     parser.add_argument('--log-detections', default='detection.json', help='The json file to record detected objects')
     opt = parser.parse_args()
-    opt.img_size = check_img_size(opt.img_size)
+
+    meta = {}
+    with open(os.path.join(opt.path, '../metadata.txt')) as f:
+        for line in f.readlines():
+            line = line.strip()
+            if line:
+                line = line.split('=')
+                meta[line[0]] = line[1]
+    opt.img_size = check_img_size(int(meta['resolution'].split('x')[0]))
+    print(f'img_size: {opt.img_size}')
     return opt
 
 
@@ -165,21 +174,13 @@ def main():
     opt = parse_args()
     finish_log = os.path.join(opt.path, f'stream_local.finish')
     if os.path.isfile(finish_log):
-        logging.info('Already processed, skip')
+        logging.warning('Already processed, skip')
         return
     if opt.log_detections:
         global LOG_PATH
         LOG_PATH = os.path.join(opt.path, f'stream_local.log')
         if os.path.exists(LOG_PATH):
             os.remove(LOG_PATH)
-    meta = {}
-    with open(os.path.join(opt.path, '../metadata.txt')) as f:
-        for line in f.readlines():
-            line = line.strip()
-            if line:
-                line = line.split('=')
-                meta[line[0]] = line[1]
-    opt.img_size = int(meta['resolution'].split('x')[0])
     object_detection(opt)
     with open(finish_log, 'w+') as f:
         f.write('finished')
