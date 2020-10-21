@@ -17,6 +17,7 @@ LOGGER = logging.getLogger(__name__)
 FIGURE = plt.figure(figsize=(9, 6), dpi=200)
 AX = FIGURE.gca()
 IM = None
+LOG_PATH = ''
 
 
 def log_time(name):
@@ -60,8 +61,8 @@ def draw_image(img):
 
 @log_time("Processing image")
 def process_image(device, model, model_classify, opt, index, data, width, height, timestamp, frame_sequence):
-    print(
-        f"Process image #{index}[{frame_sequence}] of size ({width}x{height}) captured at {timestamp} [{time.monotonic() * 1000}]")
+    # print(
+    #     f"Process image #{index}[{frame_sequence}] of size ({width}x{height}) captured at {timestamp} [{time.monotonic() * 1000}]")
     half = device.type != 'cpu'  # half precision only supported on CUDA
     img0 = np.frombuffer(data, dtype=np.uint8).reshape((height, width, -1))  # BGRA
     img = letterbox(img0[:, :, :3], new_shape=opt.img_size)[0]
@@ -76,18 +77,26 @@ def process_image(device, model, model_classify, opt, index, data, width, height
     pred = model(img, augment=opt.augment)[0]
     pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
     end_ts = torch_utils.time_synchronized()
-    print(f"YOLOv5 takes {(end_ts - start_ts) * 1000}ms [{time.monotonic() * 1000}]")
+    if opt.log_detections:
+        with open(LOG_PATH, 'a+') as f:
+            f.write(f'YOLOv5 cost {(end_ts - start_ts) * 1000 :.02f} ms for frame #{frame_sequence}\n')
+    # print(f"YOLOv5 took {(end_ts - start_ts) * 1000:.02f} ms, finished at [{time.monotonic() * 1000}]")
     if opt.classify:
         pred = apply_classifier(pred, model_classify, img, img0)
     names = model.module.names if hasattr(model, 'module') else model.names
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
     for i, det in enumerate(pred):  # detections per image
+        if opt.log_detections:
+            detection_log_path = os.path.join(opt.path, f'{frame_sequence}.txt')
+            if os.path.exists(detection_log_path):
+                os.remove(detection_log_path)
         gn = torch.tensor(img0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
         if det is not None and len(det):
             det[:, :4] = scale_coords(img.shape[2:], det[:, :4], img0.shape).round()
             for *xyxy, conf, cls in det:
                 label = '%s %.2f' % (names[int(cls)], conf)
-                plot_one_box(xyxy, img0, label=label, color=colors[int(cls)], line_thickness=3)
+                if opt.show_images:
+                    plot_one_box(xyxy, img0, label=label, color=colors[int(cls)], line_thickness=3)
                 if opt.log_detections:
                     xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                     x1 = xywh[0] - xywh[2] / 2
@@ -101,8 +110,9 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                                             'cls_pred_name': names[int(cls)]},
                               'yolo_version': 'v5'}
                     line = json.dumps(result) + '\n'
-                    with open(os.path.join(opt.path, f'{frame_sequence}.txt'), 'a+') as f:
-                        f.write(line)
+                    if opt.log_detections:
+                        with open(detection_log_path, 'a+') as f:
+                            f.write(line)
             if opt.show_images:
                 cv2.imwrite(os.path.join(opt.path, f"{frame_sequence}.jpg"), img0)
                 draw_image(img0)
@@ -157,6 +167,18 @@ def object_detection(opt):
 
 def main():
     opt = parse_args()
+    if opt.log_detections:
+        global LOG_PATH
+        LOG_PATH = os.path.join(opt.path, f'stream_local.log')
+        if os.path.exists(LOG_PATH):
+            os.remove(LOG_PATH)
+
+    files = os.listdir(opt.path)
+    sequences = sorted(list(set([f.split('.')[0] for f in files])))
+    for seq in sequences:
+        meta = json.load(open(os.path.join(opt.path, f'{seq}.json')))
+        width, height = meta['width'], meta['height']
+        opt.img_size = max(max(opt.img_size, width), height)
     object_detection(opt)
 
 

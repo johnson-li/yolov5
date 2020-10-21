@@ -84,6 +84,7 @@ def process_image(device, model, model_classify, opt, index, data, width, height
         img = img.unsqueeze(0)
     start_ts = torch_utils.time_synchronized()
     pred = model(img, augment=opt.augment)[0]
+    print(opt.conf_thres, opt.iou_thres, opt.classes, opt.agnostic_nms)
     pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
     end_ts = torch_utils.time_synchronized()
     print(f"YOLOv5 takes {(end_ts - start_ts) * 1000}ms [{time.monotonic() * 1000}]")
