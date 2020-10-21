@@ -122,19 +122,15 @@ def process_image(device, model, model_classify, opt, index, data, width, height
 
 def read_images(device, model, model_classify, opt):
     files = os.listdir(opt.path)
-    sequences = sorted(list(set([f.split('.')[0] for f in files])))
+    sequences = sorted(list(filter(lambda x: x.isnumeric(), set([f.split('.')[0] for f in files]))))
     for seq in sequences:
         meta = json.load(open(os.path.join(opt.path, f'{seq}.json')))
         width, height, timestamp = meta['width'], meta['height'], meta['timestamp']
+        if width != opt.img_size:
+            print(f'Image of wrong size: {width}x{height} vs {opt.img_size}')
+            continue
         image = np.fromfile(os.path.join(opt.path, f'{seq}.bin'))
         process_image(device, model, model_classify, opt, -1, image, width, height, timestamp, seq)
-
-
-def on_result(result):
-    result = json.dumps(result)
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect(UNIX_SOCKET_NAME)
-    sock.send(result.encode())
 
 
 def parse_args():
@@ -167,19 +163,26 @@ def object_detection(opt):
 
 def main():
     opt = parse_args()
+    finish_log = os.path.join(opt.path, f'stream_local.finish')
+    if os.path.isfile(finish_log):
+        logging.info('Already processed, skip')
+        return
     if opt.log_detections:
         global LOG_PATH
         LOG_PATH = os.path.join(opt.path, f'stream_local.log')
         if os.path.exists(LOG_PATH):
             os.remove(LOG_PATH)
-
-    files = os.listdir(opt.path)
-    sequences = sorted(list(set([f.split('.')[0] for f in files])))
-    for seq in sequences:
-        meta = json.load(open(os.path.join(opt.path, f'{seq}.json')))
-        width, height = meta['width'], meta['height']
-        opt.img_size = max(max(opt.img_size, width), height)
+    meta = {}
+    with open(os.path.join(opt.path, '../metadata.txt')) as f:
+        for line in f.readlines():
+            line = line.strip()
+            if line:
+                line = line.split('=')
+                meta[line[0]] = line[1]
+    opt.img_size = int(meta['resolution'].split('x')[0])
     object_detection(opt)
+    with open(finish_log, 'w+') as f:
+        f.write('finished')
 
 
 SERVER_PROTOCOLS = set()
