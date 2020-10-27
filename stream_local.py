@@ -180,11 +180,15 @@ def main():
     if not opt.redo and os.path.isfile(finish_log):
         logging.warning('Already processed, skip')
         return
+    if len(os.listdir(opt.path)) < 5:
+        logging.warning('Not enough data, skip')
+        return
     if opt.log_detections:
         global LOG_PATH
         LOG_PATH = os.path.join(opt.path, f'stream_local.{WEIGHT}.log')
         if os.path.exists(LOG_PATH):
             os.remove(LOG_PATH)
+    logging.warning(f"Working on {opt.path}")
     object_detection(opt)
     with open(finish_log, 'w+') as f:
         f.write('finished')
