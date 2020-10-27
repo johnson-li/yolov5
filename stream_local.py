@@ -18,6 +18,7 @@ FIGURE = plt.figure(figsize=(9, 6), dpi=200)
 AX = FIGURE.gca()
 IM = None
 LOG_PATH = ''
+WEIGHT = 'yolov5s'
 
 
 def log_time(name):
@@ -87,7 +88,7 @@ def process_image(device, model, model_classify, opt, index, data, width, height
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
     for i, det in enumerate(pred):  # detections per image
         if opt.log_detections:
-            detection_log_path = os.path.join(opt.path, f'{frame_sequence}.txt')
+            detection_log_path = os.path.join(opt.path, f'{frame_sequence}.{WEIGHT}.txt')
             if os.path.exists(detection_log_path):
                 os.remove(detection_log_path)
         gn = torch.tensor(img0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
@@ -147,6 +148,7 @@ def parse_args():
     parser.add_argument('-a', '--augment', action='store_true', help='augmented inference')
     parser.add_argument('-f', '--classes', nargs='+', type=int, help='filter by class')
     parser.add_argument('-l', '--show-images', action='store_true', help='Show detected objects')
+    parser.add_argument('-r', '--redo', action='store_true', help='Ignore the finish tag')
     parser.add_argument('--log-detections', default='detection.json', help='The json file to record detected objects')
     opt = parser.parse_args()
 
@@ -159,6 +161,8 @@ def parse_args():
                 meta[line[0]] = line[1]
     opt.img_size = check_img_size(int(meta['resolution'].split('x')[0]))
     print(f'img_size: {opt.img_size}')
+    global WEIGHT
+    WEIGHT = opt.weights.split('/')[-1].split('.')[0]
     return opt
 
 
@@ -172,13 +176,13 @@ def object_detection(opt):
 
 def main():
     opt = parse_args()
-    finish_log = os.path.join(opt.path, f'stream_local.finish')
-    if os.path.isfile(finish_log):
+    finish_log = os.path.join(opt.path, f'stream_local.{WEIGHT}.finish')
+    if not opt.redo and os.path.isfile(finish_log):
         logging.warning('Already processed, skip')
         return
     if opt.log_detections:
         global LOG_PATH
-        LOG_PATH = os.path.join(opt.path, f'stream_local.log')
+        LOG_PATH = os.path.join(opt.path, f'stream_local.{WEIGHT}.log')
         if os.path.exists(LOG_PATH):
             os.remove(LOG_PATH)
     object_detection(opt)
