@@ -19,6 +19,18 @@ AX = FIGURE.gca()
 IM = None
 LOG_PATH = ''
 WEIGHT = 'yolov5s'
+CACHE_DIR = '/mnt/wd/waymo/cache'
+IMAGE_FILES = ["segment-10017090168044687777_6380_000_6400_000_with_camera_labels.tfrecord",
+               "segment-10023947602400723454_1120_000_1140_000_with_camera_labels.tfrecord",
+               "segment-1005081002024129653_5313_150_5333_150_with_camera_labels.tfrecord",
+               "segment-10061305430875486848_1080_000_1100_000_with_camera_labels.tfrecord",
+               "segment-10072140764565668044_4060_000_4080_000_with_camera_labels.tfrecord",
+               'segment-10072231702153043603_5725_000_5745_000_with_camera_labels.tfrecord',
+               'segment-10075870402459732738_1060_000_1080_000_with_camera_labels.tfrecord',
+               'segment-10082223140073588526_6140_000_6160_000_with_camera_labels.tfrecord',
+               'segment-10094743350625019937_3420_000_3440_000_with_camera_labels.tfrecord',
+               ]
+CACHED_FILES = []
 
 
 def log_time(name):
@@ -61,9 +73,7 @@ def draw_image(img):
 
 
 @log_time("Processing image")
-def process_image(device, model, model_classify, opt, index, data, width, height, timestamp, frame_sequence):
-    # print(
-    #     f"Process image #{index}[{frame_sequence}] of size ({width}x{height}) captured at {timestamp} [{time.monotonic() * 1000}]")
+def process_image(device, model, model_classify, opt, index, data, width, height, timestamp, frame_sequence, log_path):
     half = device.type != 'cpu'  # half precision only supported on CUDA
     img0 = np.frombuffer(data, dtype=np.uint8).reshape((height, width, -1))  # BGRA
     img = letterbox(img0[:, :, :3], new_shape=opt.img_size)[0]
@@ -74,21 +84,15 @@ def process_image(device, model, model_classify, opt, index, data, width, height
     img /= 255.0
     if img.ndimension() == 3:
         img = img.unsqueeze(0)
-    start_ts = torch_utils.time_synchronized()
     pred = model(img, augment=opt.augment)[0]
     pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
-    end_ts = torch_utils.time_synchronized()
-    if opt.log_detections:
-        with open(LOG_PATH, 'a+') as f:
-            f.write(f'YOLOv5 cost {(end_ts - start_ts) * 1000 :.02f} ms for frame #{frame_sequence}\n')
-    # print(f"YOLOv5 took {(end_ts - start_ts) * 1000:.02f} ms, finished at [{time.monotonic() * 1000}]")
     if opt.classify:
         pred = apply_classifier(pred, model_classify, img, img0)
     names = model.module.names if hasattr(model, 'module') else model.names
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
     for i, det in enumerate(pred):  # detections per image
         if opt.log_detections:
-            detection_log_path = os.path.join(opt.path, f'{frame_sequence}.{WEIGHT}.txt')
+            detection_log_path = os.path.join(log_path, f'{frame_sequence}.{WEIGHT}.txt')
             if os.path.exists(detection_log_path):
                 os.remove(detection_log_path)
         gn = torch.tensor(img0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
@@ -115,23 +119,19 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                         with open(detection_log_path, 'a+') as f:
                             f.write(line)
             if opt.show_images:
-                cv2.imwrite(os.path.join(opt.path, f"{frame_sequence}.jpg"), img0)
+                cv2.imwrite(os.path.join(log_path, f"{frame_sequence}.jpg"), img0)
                 draw_image(img0)
                 plt.draw()
                 plt.pause(.01)
 
 
-def read_images(device, model, model_classify, opt):
-    files = os.listdir(opt.path)
-    sequences = sorted(list(filter(lambda x: x.isnumeric(), set([f.split('.')[0] for f in files]))))
-    for seq in sequences:
-        meta = json.load(open(os.path.join(opt.path, f'{seq}.json')))
-        width, height, timestamp = meta['width'], meta['height'], meta['timestamp']
-        # if width != opt.img_size:
-        #     print(f'Image of wrong size: {width}x{height} vs {opt.img_size}')
-        #     continue
-        image = np.fromfile(os.path.join(opt.path, f'{seq}.bin'))
-        process_image(device, model, model_classify, opt, -1, image, width, height, timestamp, seq)
+def read_images(device, model, model_classify, opt, frame_sequences):
+    log_path = os.path.join(opt.path, 'baseline')
+    Path(log_path).mkdir(parents=True, exist_ok=True)
+    for seq in frame_sequences:
+        width, height, timestamp = 1920, 1280, -1
+        image = np.load(CACHED_FILES[seq])
+        process_image(device, model, model_classify, opt, -1, image, width, height, timestamp, seq, log_path)
 
 
 def parse_args():
@@ -151,43 +151,34 @@ def parse_args():
     parser.add_argument('-r', '--redo', action='store_true', help='Ignore the finish tag')
     parser.add_argument('--log-detections', default='detection.json', help='The json file to record detected objects')
     opt = parser.parse_args()
-
-    meta = {}
-    with open(os.path.join(opt.path, '../metadata.txt')) as f:
-        for line in f.readlines():
-            line = line.strip()
-            if line:
-                line = line.split('=')
-                meta[line[0]] = line[1]
-    opt.img_size = check_img_size(int(meta['resolution'].split('x')[0]))
-    print(f'img_size: {opt.img_size}')
     global WEIGHT
     WEIGHT = opt.weights.split('/')[-1].split('.')[0]
     return opt
 
 
-def object_detection(opt):
+def object_detection(opt, frame_sequences):
     try:
         device, model, model_classify = get_model(opt)
-        read_images(device, model, model_classify, opt)
+        read_images(device, model, model_classify, opt, frame_sequences)
     except KeyboardInterrupt as e:
         LOGGER.info("Keyboard interruption detected, terminate programme.")
 
 
 def main():
     opt = parse_args()
-    finish_log = os.path.join(opt.path, f'stream_local.{WEIGHT}.finish')
-    if not opt.redo and os.path.isfile(finish_log):
-        logging.warning('Already processed, skip')
-        return
-    if opt.log_detections:
-        global LOG_PATH
-        LOG_PATH = os.path.join(opt.path, f'stream_local.{WEIGHT}.log')
-        if os.path.exists(LOG_PATH):
-            os.remove(LOG_PATH)
-    object_detection(opt)
-    with open(finish_log, 'w+') as f:
-        f.write('finished')
+    for f in IMAGE_FILES:
+        f = os.path.join(CACHE_DIR, f)
+        ff = sorted([i for i in os.listdir(f) if i.endswith('npy')], key=lambda x: int(x.split('.')[0]))
+        CACHED_FILES.extend([os.path.join(f, i) for i in ff])
+    frame_sequences = set()
+    for f in os.listdir(opt.path):
+        if f == 'baseline':
+            continue
+        f = os.path.join(opt.path, f)
+        f = os.path.join(f, 'dump')
+        for i in [int(i.split('.')[0]) for i in os.listdir(f) if i.endswith('.bin')]:
+            frame_sequences.add(i)
+    object_detection(opt, frame_sequences)
 
 
 SERVER_PROTOCOLS = set()
