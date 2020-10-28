@@ -141,7 +141,7 @@ def parse_args():
     parser.add_argument('-v', '--view-img', action='store_true', help='display results')
     parser.add_argument('-d', '--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('-2', '--classify', default=False, help='whether to enable the second-level classifier')
-    parser.add_argument('-s', '--img-size', type=int, default=640, help='inference size (pixels)')
+    parser.add_argument('-s', '--img-size', type=int, default=1920, help='inference size (pixels)')
     parser.add_argument('-c', '--conf-thres', type=float, default=0.4, help='object confidence threshold')
     parser.add_argument('-i', '--iou-thres', type=float, default=0.5, help='IOU threshold for NMS')
     parser.add_argument('-g', '--agnostic-nms', action='store_true', help='class-agnostic NMS')
