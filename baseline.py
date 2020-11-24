@@ -1,3 +1,4 @@
+import os
 import argparse
 import struct
 import socket
@@ -19,7 +20,7 @@ AX = FIGURE.gca()
 IM = None
 LOG_PATH = ''
 WEIGHT = 'yolov5s'
-CACHE_DIR = '/mnt/wd/waymo/cache'
+CACHE_DIR = os.path.expanduser('~/Data/waymo/cache')
 IMAGE_FILES = ["segment-10017090168044687777_6380_000_6400_000_with_camera_labels.tfrecord",
                "segment-10023947602400723454_1120_000_1140_000_with_camera_labels.tfrecord",
                "segment-1005081002024129653_5313_150_5333_150_with_camera_labels.tfrecord",
@@ -136,7 +137,7 @@ def read_images(device, model, model_classify, opt, frame_sequences):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', type=str, help='the path of dump dir')
+    parser.add_argument('-p', '--path', type=str, help='the path of expeiment dir')
     parser.add_argument('-w', '--weights', type=str, default='weights/yolov5s.pt', help='model.pt path')
     parser.add_argument('-v', '--view-img', action='store_true', help='display results')
     parser.add_argument('-d', '--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
