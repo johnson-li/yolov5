@@ -124,6 +124,13 @@ def process_image(device, model, model_classify, opt, index, data, width, height
                 draw_image(img0)
                 plt.draw()
                 plt.pause(.01)
+        else:
+            result = {}
+            line = json.dumps(result) + '\n'
+            if opt.log_detections:
+                with open(detection_log_path, 'a+') as f:
+                    f.write(line)
+
 
 
 def read_images(device, model, model_classify, opt):
