@@ -37,10 +37,15 @@ def log_time(name):
 
 @log_time("Initiating model")
 def get_model(opt):
+    weights = opt.weights
+    if not weights.endswith('.pt'):
+        weights = f'{weights}.pt'
+    if not weights.startswith('weights/'):
+        weights = f'weights/{weights}'
     device = torch_utils.select_device(opt.device)
     half = device.type != 'cpu'
-    google_utils.attempt_download(opt.weights)
-    model = torch.load(opt.weights, map_location=device)['model'].float()
+    google_utils.attempt_download(weights)
+    model = torch.load(weights, map_location=device)['model'].float()
     model.to(device).eval()
     if half:
         model.half()
@@ -125,7 +130,11 @@ def read_images(device, model, model_classify, opt):
     files = os.listdir(opt.path)
     sequences = sorted(list(filter(lambda x: x.isnumeric(), set([f.split('.')[0] for f in files]))))
     for seq in sequences:
-        meta = json.load(open(os.path.join(opt.path, f'{seq}.json')))
+        try:
+            meta = json.load(open(os.path.join(opt.path, f'{seq}.json')))
+        except Exception as e:
+            print('Failed to parse json file: ' + str(os.path.join(opt.path, f'{seq}.json')))
+            continue
         width, height, timestamp = meta['width'], meta['height'], meta['timestamp']
         # if width != opt.img_size:
         #     print(f'Image of wrong size: {width}x{height} vs {opt.img_size}')
