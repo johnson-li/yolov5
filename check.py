@@ -6,6 +6,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--path', type=str, help='the path of dump dir')
     parser.add_argument('-w', '--weights', type=str, default='weights/yolov5s.pt', help='model.pt path')
+    parser.add_argument('-r', '--remove', action='store_true',
+                        help='remove .finish file when finding missing detection result files')
     opt = parser.parse_args()
     return opt
 
@@ -30,6 +32,10 @@ def main():
             detection_path = os.path.join(dump_dir, f'{i}.{weight_name}.txt')
             if not os.path.isfile(detection_path):
                 print(f'Missing objection detection result file: {detection_path}')
+                finish_path = os.path.join(dump_dir, f'stream_local.{weight_name}.finish')
+                if os.path.isfile(finish_path):
+                    print(f'Deleting .finish file: {finish_path}')
+                    os.remove(finish_path)
                 break
 
 
