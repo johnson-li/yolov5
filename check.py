@@ -26,6 +26,7 @@ def main():
         p = os.path.join(path, p)
         dump_dir = os.path.join(p, 'dump')
         indexes = [int(i.split('.')[0]) for i in os.listdir(dump_dir) if i.endswith('.bin')]
+        indexes = sorted(indexes)
         if len(indexes) < 20:
             print(f'Not enough frames: {p}')
             continue

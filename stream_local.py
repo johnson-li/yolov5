@@ -135,7 +135,7 @@ def process_image(device, model, model_classify, opt, index, data, width, height
 
 def read_images(device, model, model_classify, opt):
     files = os.listdir(opt.path)
-    sequences = sorted(list(filter(lambda x: x.isnumeric(), set([f.split('.')[0] for f in files]))))
+    sequences = sorted([int(f.split('.')[0]) for f in files if f.endswith('.bin')])
     for seq in sequences:
         try:
             meta = json.load(open(os.path.join(opt.path, f'{seq}.json')))
