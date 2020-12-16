@@ -69,9 +69,10 @@ def draw_image(img):
 def process_image(device, model, model_classify, opt, index, data, width, height, timestamp, frame_sequence):
     # print(
     #     f"Process image #{index}[{frame_sequence}] of size ({width}x{height}) captured at {timestamp} [{time.monotonic() * 1000}]")
+    img_size = check_img_size(width)
     half = device.type != 'cpu'  # half precision only supported on CUDA
     img0 = np.frombuffer(data, dtype=np.uint8).reshape((height, width, -1))  # BGRA
-    img = letterbox(img0[:, :, :3], new_shape=opt.img_size)[0]
+    img = letterbox(img0[:, :, :3], new_shape=img_size)[0]
     img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, width x height x channel to channel x width x height
     img = np.ascontiguousarray(img)
     img = torch.from_numpy(img).to(device)
@@ -168,15 +169,15 @@ def parse_args():
     parser.add_argument('--log-detections', default='detection.json', help='The json file to record detected objects')
     opt = parser.parse_args()
 
-    meta = {}
-    with open(os.path.join(opt.path, '../metadata.txt')) as f:
-        for line in f.readlines():
-            line = line.strip()
-            if line:
-                line = line.split('=')
-                meta[line[0]] = line[1]
-    opt.img_size = check_img_size(int(meta['resolution'].split('x')[0]))
-    print(f'img_size: {opt.img_size}')
+    #meta = {}
+    #with open(os.path.join(opt.path, '../metadata.txt')) as f:
+    #    for line in f.readlines():
+    #        line = line.strip()
+    #        if line:
+    #            line = line.split('=')
+    #            meta[line[0]] = line[1]
+    #opt.img_size = check_img_size(int(meta['resolution'].split('x')[0]))
+    #print(f'img_size: {opt.img_size}')
     global WEIGHT
     WEIGHT = opt.weights.split('/')[-1].split('.')[0]
     return opt

@@ -23,6 +23,8 @@ def main():
         weight = 'weight/' + weight
     weight_name = weight.split('/')[-1].split('.')[0]
     for p in os.listdir(path):
+        if p == 'baseline':
+            continue
         p = os.path.join(path, p)
         dump_dir = os.path.join(p, 'dump')
         indexes = [int(i.split('.')[0]) for i in os.listdir(dump_dir) if i.endswith('.bin')]
