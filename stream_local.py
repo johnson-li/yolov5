@@ -12,6 +12,7 @@ from utils import google_utils
 from utils.datasets import *
 from utils.utils import *
 from pprint import pprint
+from random import randint
 
 LOGGER = logging.getLogger(__name__)
 FIGURE = plt.figure(figsize=(9, 6), dpi=200)
@@ -156,7 +157,7 @@ def parse_args():
     parser.add_argument('-p', '--path', type=str, help='the path of dump dir')
     parser.add_argument('-w', '--weights', type=str, default='weights/yolov5s.pt', help='model.pt path')
     parser.add_argument('-v', '--view-img', action='store_true', help='display results')
-    parser.add_argument('-d', '--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('-d', '--device', default=str(randint(0,1)), help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('-2', '--classify', default=False, help='whether to enable the second-level classifier')
     parser.add_argument('-s', '--img-size', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('-c', '--conf-thres', type=float, default=0.4, help='object confidence threshold')
