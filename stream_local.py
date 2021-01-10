@@ -83,12 +83,12 @@ def process_image(device, model, model_classify, opt, index, data, width, height
         img = img.unsqueeze(0)
     start_ts = torch_utils.time_synchronized()
     pred = model(img, augment=opt.augment)[0]
+    end_ts1 = torch_utils.time_synchronized()
     pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
-    end_ts = torch_utils.time_synchronized()
+    end_ts2 = torch_utils.time_synchronized()
     if opt.log_detections:
         with open(LOG_PATH, 'a+') as f:
-            f.write(f'YOLOv5 cost {(end_ts - start_ts) * 1000 :.02f} ms for frame #{frame_sequence}\n')
-    # print(f"YOLOv5 took {(end_ts - start_ts) * 1000:.02f} ms, finished at [{time.monotonic() * 1000}]")
+            f.write(f'YOLOv5 cost {(end_ts2 - start_ts) * 1000 :.02f} ms for frame #{frame_sequence}\n')
     if opt.classify:
         pred = apply_classifier(pred, model_classify, img, img0)
     names = model.module.names if hasattr(model, 'module') else model.names
